@@ -12,21 +12,29 @@ const { MASTER_ROSTER, isValidRollNumber } = require('./utils/roster');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Local JSON File Store Path
-const DATA_DIR = path.join(__dirname, 'data');
+// Local JSON File Store Path (with Vercel /tmp fallback)
+const os = require('os');
+const DATA_DIR = process.env.VERCEL ? os.tmpdir() : path.join(__dirname, 'data');
 const LOCAL_STORE_FILE = path.join(DATA_DIR, 'submissions.json');
 
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-if (!fs.existsSync(LOCAL_STORE_FILE)) {
-  fs.writeFileSync(LOCAL_STORE_FILE, JSON.stringify([]), 'utf8');
+try {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(LOCAL_STORE_FILE)) {
+    fs.writeFileSync(LOCAL_STORE_FILE, JSON.stringify([]), 'utf8');
+  }
+} catch (fsErr) {
+  console.warn('[FS Warning]', fsErr.message);
 }
 
 function readLocalSubmissions() {
   try {
-    const raw = fs.readFileSync(LOCAL_STORE_FILE, 'utf8');
-    return JSON.parse(raw);
+    if (fs.existsSync(LOCAL_STORE_FILE)) {
+      const raw = fs.readFileSync(LOCAL_STORE_FILE, 'utf8');
+      return JSON.parse(raw);
+    }
+    return [];
   } catch (err) {
     return [];
   }
@@ -329,9 +337,13 @@ app.get('/api/script', (req, res) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
-  console.log(`====================================================`);
-  console.log(`🚀 Certificate Upload Server running on http://localhost:${PORT}`);
-  console.log(`📁 Master Roster Count: ${MASTER_ROSTER.length} students`);
-  console.log(`====================================================`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`====================================================`);
+    console.log(`🚀 Certificate Upload Server running on http://localhost:${PORT}`);
+    console.log(`📁 Master Roster Count: ${MASTER_ROSTER.length} students`);
+    console.log(`====================================================`);
+  });
+}
+
+module.exports = app;
